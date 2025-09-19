@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  AZURE_CONTAINER_REGISTRY: ${{ secrets.AZURE_CONTAINER_REGISTRY }}
+  AZURE_CONTAINER_REGISTRY: ${{ secrets.CONTAINER_REGISTRY }}
   CONTAINER_NAME: "v2trainbe"
   RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
   CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }}
@@ -33,31 +33,6 @@ jobs:
       - name: Install dependencies
         run: npm ci  # Use 'npm ci' instead of 'npm install' for CI/CD
       
-      - name: Verify Secrets Are Set
-        run: |
-          echo "Checking if secrets are properly set..."
-              
-          if [ -z "${{ secrets.AZURE_CLIENT_ID }}" ]; then
-            echo "❌ AZURE_CLIENT_ID is empty or not set"
-          else
-            echo "✅ AZURE_CLIENT_ID is set (length: ${#AZURE_CLIENT_ID})"
-          fi
-              
-          if [ -z "${{ secrets.AZURE_TENANT_ID }}" ]; then
-            echo "❌ AZURE_TENANT_ID is empty or not set"
-          else
-            echo "✅ AZURE_TENANT_ID is set (length: ${#AZURE_TENANT_ID})"
-          fi
-              
-          if [ -z "${{ secrets.AZURE_SUBSCRIPTION_ID }}" ]; then
-            echo "❌ AZURE_SUBSCRIPTION_ID is empty or not set"
-          else
-            echo "✅ AZURE_SUBSCRIPTION_ID is set (length: ${#AZURE_SUBSCRIPTION_ID})"
-          fi
-        env:
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}  
 
       # Logs in with your Azure credentials
       - name: Azure login
@@ -65,47 +40,16 @@ jobs:
         continue-on-error: true
         uses: azure/login@v1.4.6
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}      
+          client-id: ${{ secrets.CLIENT_ID }}
+          tenant-id: ${{ secrets.TENANT_ID }}
+          subscription-id: ${{ secrets.SUBSCRIPTION_ID }}      
         env:
           ACTIONS_STEP_DEBUG: true
-
-      - name: Check login failure details
-        if: steps.azure-login.outcome == 'failure'
-        run: |
-          echo "Azure login failed. Checking OIDC configuration..."
-          echo "Expected subject: repo:${{ github.repository }}:ref:${{ github.ref }}"
-          echo "Expected audience: api://AzureADTokenExchange"
-      
-      - name: Manual Azure CLI OIDC Test
-        run: |
-          echo "=== Manual OIDC Login Test ==="
-
-          # Get OIDC token
-          OIDC_TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=api://AzureADTokenExchange" | jq -r '.value')
-
-          if [ -n "$OIDC_TOKEN" ] && [ "$OIDC_TOKEN" != "null" ]; then
-            echo "Attempting manual az login with OIDC token..."
-
-            # Try manual federated credential login with full debug output
-            az login --service-principal \
-              --username ${{ secrets.AZURE_CLIENT_ID }} \
-              --tenant ${{ secrets.AZURE_TENANT_ID }} \
-              --federated-token "$OIDC_TOKEN" \
-              --debug
-          else
-            echo "Cannot perform manual test - no OIDC token available"
-          fi
-        env:
-          ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
-          ACTIONS_ID_TOKEN_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
-
+     
       # Builds and pushes an image up to your Azure Container Registry
       - name: Build and push image to ACR
         run: |
-          az acr build --image ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/${{ env.CONTAINER_NAME }}:${{ github.sha }} --registry ${{ env.AZURE_CONTAINER_REGISTRY }} -g ${{ env.RESOURCE_GROUP }} .
+          az acr build --image ${{ secrets.CONTAINER_REGISTRY }}.azurecr.io/${{ env.CONTAINER_NAME }}:${{ github.sha }} --registry ${{ secrets.CONTAINER_REGISTRY }} -g ${{ secrets.RESOURCE_GROUP }} .
 
   deploy:
     permissions:
@@ -122,9 +66,9 @@ jobs:
       - name: Azure login
         uses: azure/login@v1.4.6
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ secrets.CLIENT_ID }}
+          tenant-id: ${{ secrets.TENANT_ID }}
+          subscription-id: ${{ secrets.SUBSCRIPTION_ID }}
 
       # Use kubelogin to configure your kubeconfig for Azure auth
       - name: Set up kubelogin for non-interactive login
@@ -148,4 +92,4 @@ jobs:
           action: deploy
           manifests: ${{ env.DEPLOYMENT_MANIFEST_PATH }}
           images: |
-            ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/${{ env.CONTAINER_NAME }}:${{ github.sha }}
+            ${{ secrets.CONTAINER_REGISTRY }}.azurecr.io/${{ env.CONTAINER_NAME }}:${{ github.sha }}
