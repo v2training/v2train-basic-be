@@ -42,6 +42,8 @@ jobs:
       
       # Logs in with your Azure credentials
       - name: Azure login
+        id: azure-login
+        continue-on-error: true
         uses: azure/login@v1.4.6
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -49,6 +51,13 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}      
         env:
           ACTIONS_STEP_DEBUG: true
+
+      - name: Check login failure details
+        if: steps.azure-login.outcome == 'failure'
+        run: |
+          echo "Azure login failed. Checking OIDC configuration..."
+          echo "Expected subject: repo:${{ github.repository }}:ref:${{ github.ref }}"
+          echo "Expected audience: api://AzureADTokenExchange"
 
       # Builds and pushes an image up to your Azure Container Registry
       - name: Build and push image to ACR
