@@ -90,6 +90,7 @@ jobs:
         uses: Azure/k8s-deploy@v4
         with:
           action: deploy
+          namespace: microservice-demo
           manifests: ${{ env.DEPLOYMENT_MANIFEST_PATH }}
           images: |
             ${{ secrets.CONTAINER_REGISTRY }}.azurecr.io/${{ env.CONTAINER_NAME }}:${{ github.sha }}
