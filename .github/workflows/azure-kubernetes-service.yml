@@ -39,7 +39,7 @@ jobs:
           which az || echo "Az CLI not found in PATH"
           az version || echo "Failed to get Az CLI version"
           az account show || echo "No active account found"
-      
+    
       # Logs in with your Azure credentials
       - name: Azure login
         id: azure-login
@@ -58,6 +58,53 @@ jobs:
           echo "Azure login failed. Checking OIDC configuration..."
           echo "Expected subject: repo:${{ github.repository }}:ref:${{ github.ref }}"
           echo "Expected audience: api://AzureADTokenExchange"
+
+      - name: Detailed OIDC Debug
+        run: |
+          echo "=== OIDC Environment Check ==="
+          echo "ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${ACTIONS_ID_TOKEN_REQUEST_TOKEN:+SET}"
+          echo "ACTIONS_ID_TOKEN_REQUEST_URL: ${ACTIONS_ID_TOKEN_REQUEST_URL:+SET}"
+          
+          if [ -n "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ] && [ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ]; then
+            echo "✅ OIDC variables available"
+
+            echo "=== Requesting OIDC Token ==="
+            RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
+              -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+              "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=api://AzureADTokenExchange")
+
+            HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE:" | cut -d: -f2)
+            BODY=$(echo "$RESPONSE" | sed '/HTTP_CODE:/d')
+
+            echo "HTTP Status: $HTTP_CODE"
+
+            if [ "$HTTP_CODE" = "200" ]; then
+              OIDC_TOKEN=$(echo "$BODY" | jq -r '.value // empty')
+
+              if [ -n "$OIDC_TOKEN" ]; then
+                echo "✅ OIDC token obtained successfully"
+
+                echo "=== Token Claims ==="
+                PAYLOAD=$(echo "$OIDC_TOKEN" | cut -d'.' -f2)
+                # Add padding if needed for base64 decoding
+                case $((${#PAYLOAD} % 4)) in
+                  2) PAYLOAD="${PAYLOAD}==";;
+                  3) PAYLOAD="${PAYLOAD}=";;
+                esac
+
+                echo "$PAYLOAD" | base64 -d 2>/dev/null | jq . || echo "Could not decode token payload"
+              else
+                echo "❌ No token in response"
+                echo "Response body: $BODY"
+              fi
+            else
+              echo "❌ Failed to get token (HTTP $HTTP_CODE)"
+              echo "Response: $BODY"
+            fi
+          else
+            echo "❌ OIDC variables not available - check workflow permissions"
+          fi
+      
 
       # Builds and pushes an image up to your Azure Container Registry
       - name: Build and push image to ACR
