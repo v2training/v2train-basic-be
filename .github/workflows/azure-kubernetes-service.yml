@@ -87,7 +87,12 @@ jobs:
 
       - name: Deploy application
         run: |
-          kubectl apply -f ${{ env.DEPLOYMENT_MANIFEST_PATH }} --validate=false -n microservice-demo
-          kubectl set image deployment/$(basename ${{ env.DEPLOYMENT_MANIFEST_PATH }} .yaml) \
-            ${{ env.CONTAINER_NAME }}=${{ secrets.CONTAINER_REGISTRY }}.azurecr.io/${{ env.CONTAINER_NAME }}:${{ github.sha }} \
-            -n microservice-demo
+          for file in k8s/*.yaml; do
+            echo "Deploying $file..."
+            az aks command invoke \
+              --resource-group ${{ env.RESOURCE_GROUP }} \
+              --name ${{ env.CLUSTER_NAME }} \
+              --command "kubectl apply -f - <<EOF
+          $(cat $file)
+          EOF"
+          done
