@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  AZURE_CONTAINER_REGISTRY: ${{ secrets.CONTAINER_REGISTRY }}
+  CONTAINER_REGISTRY: ${{ secrets.CONTAINER_REGISTRY }}
   CONTAINER_NAME: "backend-api"
   RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
   CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }}
@@ -86,6 +86,8 @@ jobs:
           use-kubelogin: 'true'
 
       - name: Deploy application
+        env:
+          CONTAINER_REGISTRY: ${{ env.CONTAINER_REGISTRY }}
         run: |
           for file in k8s/*.yaml; do
             echo "Deploying $file..."
@@ -93,6 +95,6 @@ jobs:
               --resource-group ${{ env.RESOURCE_GROUP }} \
               --name ${{ env.CLUSTER_NAME }} \
               --command "kubectl apply -f - <<EOF
-          $(cat $file)
+          $(envsubst < $file)
           EOF"
           done
