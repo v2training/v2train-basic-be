@@ -43,9 +43,7 @@ jobs:
           client-id: ${{ secrets.CLIENT_ID }}
           tenant-id: ${{ secrets.TENANT_ID }}
           subscription-id: ${{ secrets.SUBSCRIPTION_ID }}      
-        env:
-          ACTIONS_STEP_DEBUG: true
-     
+
       # Builds and pushes an image up to your Azure Container Registry
       - name: Build and push image to ACR
         run: |
@@ -85,17 +83,21 @@ jobs:
           admin: 'false'
           use-kubelogin: 'true'
 
-      - name: Deploy application
+      - name: Substitute environment variables in manifests
         env:
-          CONTAINER_REGISTRY: ${{ env.CONTAINER_REGISTRY }}
+          CONTAINER_REGISTRY: ${{ secrets.CONTAINER_REGISTRY }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
           for file in k8s/*.yaml; do
-            echo "Deploying $file..."
-            az aks command invoke \
-              --resource-group ${{ env.RESOURCE_GROUP }} \
-              --name ${{ env.CLUSTER_NAME }} \
-              --command "kubectl apply -f - <<EOF
-          $(envsubst < $file)
-          EOF"
+            envsubst < "$file" > "${file}.tmp" && mv "${file}.tmp" "$file"
           done
+
+      # Deploys application based on given manifest file
+      - name: Deploys application        
+        uses: Azure/k8s-deploy@v4
+        with:
+          action: deploy
+          manifests: ${{ env.DEPLOYMENT_MANIFEST_PATH }}
+          namespace: 'microservice-demo'
+          images: |
+            ${{ env.CONTAINER_REGISTRY }}.azurecr.io/${{ env.CONTAINER_NAME }}:${{ github.sha }}
