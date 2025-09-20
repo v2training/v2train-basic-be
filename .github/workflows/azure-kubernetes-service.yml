@@ -97,17 +97,18 @@ jobs:
         uses: Azure/k8s-deploy@v4
         with:
           action: deploy
-          manifests: k8s/namespace.yaml
-      
+          manifests: k8s/namespace.yaml    
 
-      # Deploy namespace first
-      - name: Create namespace
-        uses: Azure/k8s-deploy@v4
-        with:
-          action: deploy
-          manifests: k8s/namespace.yaml
+      - name: Ensure NGINX Ingress Controller is installed
+        run: |
+          echo "Applying NGINX Ingress Controller configuration..."
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.1/deploy/static/provider/cloud/deploy.yaml
+          echo "Waiting for ingress controller to be ready..."
+          kubectl wait --namespace ingress-nginx \
+            --for=condition=ready pod \
+            --selector=app.kubernetes.io/component=controller \
+            --timeout=300s
 
-          
       # Deploys application based on given manifest file
       - name: Deploys application        
         uses: Azure/k8s-deploy@v4
