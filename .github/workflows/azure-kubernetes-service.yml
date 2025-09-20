@@ -92,12 +92,32 @@ jobs:
             envsubst < "$file" > "${file}.tmp" && mv "${file}.tmp" "$file"
           done
 
+      # Deploy namespace first
+      - name: Create namespace
+        uses: Azure/k8s-deploy@v4
+        with:
+          action: deploy
+          manifests: k8s/namespace.yaml
+      
+
+      # Deploy namespace first
+      - name: Create namespace
+        uses: Azure/k8s-deploy@v4
+        with:
+          action: deploy
+          manifests: k8s/namespace.yaml
+
+          
       # Deploys application based on given manifest file
       - name: Deploys application        
         uses: Azure/k8s-deploy@v4
         with:
           action: deploy
-          manifests: ${{ env.DEPLOYMENT_MANIFEST_PATH }}
+          manifests: |
+            k8s/configmap.yaml
+            k8s/backend-deployment.yaml
+            k8s/backend-service.yaml
+            k8s/hpa.yaml
           namespace: 'microservice-demo'
           images: |
             ${{ env.CONTAINER_REGISTRY }}.azurecr.io/${{ env.CONTAINER_NAME }}:${{ github.sha }}
